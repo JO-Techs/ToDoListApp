@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>To-Do List App</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        margin: 0;
+        padding: 0;
+        background: linear-gradient(
+          135deg,
+          #6a11cb,
+          #2575fc
+        ); /* Purple-Blue Gradient */
+        color: white;
+        overflow: hidden;
+      }
+      canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+      }
+      .container {
+        max-width: 600px;
+        margin: 20px auto;
+        padding: 20px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.1); /* Semi-transparent white */
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+        height: 70vh; /* Increased height for longer box */
+        overflow: hidden; /* Hide overflow for a cleaner look */
+        position: relative; /* For positioning the gradient overlay */
+      }
+      .fade-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+          to bottom,
+          rgba(255, 255, 255, 0) 0%,
+          rgba(255, 255, 255, 0.1) 70%,
+          rgba(255, 255, 255, 0.2) 100%
+        );
+        pointer-events: none; /* Allow clicks through the overlay */
+        border-radius: 8px; /* Match the container's border radius */
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0; /* Remove default margin */
+        overflow-y: auto; /* Allow scrolling if needed */
+        max-height: 60vh; /* Limit the height of the list */
+      }
+      li {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+        cursor: move; /* Change cursor to indicate drag */
+      }
+      input[type="text"] {
+        padding: 10px;
+        font-size: 16px;
+        border: none;
+        border-radius: 4px;
+        outline: none;
+        margin-right: 10px;
+        flex: 1;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        border: none;
+        border-radius: 4px;
+        background: #4e54c8; /* Purple */
+        color: white;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
+      button:hover {
+        background: #2d9cdb; /* Blue */
+      }
+      a {
+        color: #ff4b5c; /* Red for delete link */
+        text-decoration: none;
+        font-weight: bold;
+      }
+      a:hover {
+        color: #ff6b81;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="snowfall"></canvas>
+    <div class="container">
+      <div class="fade-overlay"></div>
+      <!-- Fade overlay -->
+      <h1>To-Do List</h1>
+      <form action="/add" method="POST">
+        <input
+          type="text"
+          name="task"
+          placeholder="Enter a new task"
+          required
+        />
+        <button type="submit">Add Task</button>
+      </form>
+      <ul id="taskList">
+        {% for task in tasks %}
+        <li
+          draggable="true"
+          ondragstart="drag(event)"
+          id="task{{ loop.index0 }}"
+        >
+          {{ task }}
+          <div>
+            <a href="/move/{{ loop.index0 }}/up">↑</a>
+            <a href="/move/{{ loop.index0 }}/down">↓</a>
+            <a href="/delete/{{ loop.index0 }}">Delete</a>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    <script>
+      const canvas = document.getElementById("snowfall");
+      const ctx = canvas.getContext("2d");
+
+      // Set canvas size to match window
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const snowflakes = [];
+
+      function createSnowflakes() {
+        for (let i = 0; i < 100; i++) {
+          snowflakes.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height,
+            radius: Math.random() * 3 + 1,
+            speed: Math.random() * 1 + 0.5,
+          });
+        }
+      }
+
+      function drawSnowflakes() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "white";
+        ctx.beginPath();
+        snowflakes.forEach((snowflake) => {
+          ctx.moveTo(snowflake.x, snowflake.y);
+          ctx.arc(
+            snowflake.x,
+            snowflake.y,
+            snowflake.radius,
+            0,
+            Math.PI * 2,
+            true
+          );
+        });
+        ctx.fill();
+        moveSnowflakes();
+      }
+
+      function moveSnowflakes() {
+        snowflakes.forEach((snowflake) => {
+          snowflake.y += snowflake.speed;
+          if (snowflake.y > canvas.height) {
+            snowflake.y = 0;
+          }
+        });
+      }
+
+      function animate() {
+        drawSnowflakes();
+        requestAnimationFrame(animate);
+      }
+
+      createSnowflakes();
+      animate();
+
+      // Adjust canvas size dynamically
+      window.addEventListener("resize", () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      });
+
+      // Drag and drop functionality
+      function drag(event) {
+        event.dataTransfer.setData("text", event.target.id);
+      }
+
+      const taskList = document.getElementById("taskList");
+      taskList.addEventListener("dragover", (event) => {
+        event.preventDefault();
+      });
+
+      taskList.addEventListener("drop", (event) => {
+        event.preventDefault();
+        const draggedId = event.dataTransfer.getData("text");
+        const target = event.target.closest("li");
+        if (target && draggedId !== target.id) {
+          const draggedIndex = parseInt(draggedId.replace("task", ""));
+          const targetIndex = Array.from(taskList.children).indexOf(target);
+          if (draggedIndex < targetIndex) {
+            taskList.insertBefore(
+              document.getElementById(draggedId),
+              target.nextSibling
+            );
+          } else {
+            taskList.insertBefore(document.getElementById(draggedId), target);
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
